@@ -1,0 +1,126 @@
+name: Build Android test APK
+
+# Builds the SparkyFitness *dev* variant (package org.SparkyApps.SparkyFitnessMobile1.dev)
+# from a branch of tonydarcy/SparkyFitness, signs it with a personal test key and
+# publishes it as a release here so Obtainium can install and update it.
+# The dev package ID installs alongside the official app.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch of tonydarcy/SparkyFitness to build"
+        required: true
+        default: "main"
+      app_label:
+        description: "Name shown under the app icon"
+        required: true
+        default: "Sparky Dev"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=\"-Xmx6144m -XX:MaxMetaspaceSize=1024m\" -Dorg.gradle.caching=true"
+
+    steps:
+      - name: Check out SparkyFitness
+        uses: actions/checkout@v4
+        with:
+          repository: tonydarcy/SparkyFitness
+          ref: ${{ inputs.branch }}
+
+      - name: Record the commit being built
+        id: src
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./SparkyFitnessMobile/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies and generate the Android project
+        run: |
+          pnpm install --frozen-lockfile
+          cd SparkyFitnessMobile
+          APP_VARIANT=dev npx expo prebuild --platform android
+          sed -i 's/^org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
+          sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a/' android/gradle.properties
+          printf '\norg.gradle.caching=true\n' >> android/gradle.properties
+
+      - name: Rename the app label
+        env:
+          APP_LABEL: ${{ inputs.app_label }}
+        run: |
+          cd SparkyFitnessMobile/android/app/src/main/res/values
+          sed -i "s|<string name=\"app_name\">[^<]*</string>|<string name=\"app_name\">${APP_LABEL}</string>|" strings.xml
+          grep app_name strings.xml
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Prepare Gradle
+        run: |
+          chmod +x SparkyFitnessMobile/android/gradlew
+          echo "sdk.dir=$ANDROID_HOME" > SparkyFitnessMobile/android/local.properties
+
+      - name: Decode signing key
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/dev-test.keystore"
+
+      - name: Generate async-storage codegen
+        run: |
+          cd SparkyFitnessMobile/android
+          ./gradlew :react-native-async-storage_async-storage:generateCodegenArtifactsFromSchema
+
+      - name: Build release APK
+        env:
+          SPARKY_RELEASE_STORE_FILE: ${{ runner.temp }}/dev-test.keystore
+          SPARKY_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          SPARKY_RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          SPARKY_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          cd SparkyFitnessMobile/android
+          ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Collect APK
+        id: apk
+        run: |
+          APK=$(find SparkyFitnessMobile/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          OUT="$RUNNER_TEMP/sparkyfitness-dev-${{ steps.src.outputs.version }}-${{ steps.src.outputs.sha }}.apk"
+          cp "$APK" "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "${{ inputs.branch }} @ ${{ steps.src.outputs.sha }} (build ${{ github.run_number }})"
+          body: |
+            Dev test build of `${{ inputs.branch }}` at tonydarcy/SparkyFitness@${{ steps.src.outputs.sha }}.
+            App version ${{ steps.src.outputs.version }}, package `org.SparkyApps.SparkyFitnessMobile1.dev`.
+          files: ${{ steps.apk.outputs.path }}
+          make_latest: true
