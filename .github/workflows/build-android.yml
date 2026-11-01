@@ -11,7 +11,7 @@ on:
       branch:
         description: "Branch of tonydarcy/SparkyFitness to build"
         required: true
-        default: "main"
+        default: "tdmain"
       app_label:
         description: "Name shown under the app icon"
         required: true
