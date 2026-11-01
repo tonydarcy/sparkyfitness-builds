@@ -55,6 +55,38 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Add a DEV badge to the app icon
+        run: |
+          pip install --quiet pillow
+          ICON=SparkyFitnessMobile/assets/icons/adaptiveicon.png
+          cat > "$RUNNER_TEMP/dev_icon.py" <<'PY'
+          import sys
+          from PIL import Image, ImageDraw, ImageFont
+          src, out = sys.argv[1], sys.argv[2]
+          orig = Image.open(src).convert("RGBA")
+          W = orig.width; s = W / 1024
+          # Shrink the artwork and lift it so the label fits inside the launcher mask.
+          scale = 0.86
+          art = orig.resize((int(W * scale), int(W * scale)), Image.LANCZOS)
+          img = Image.new("RGBA", orig.size, (0, 0, 0, 0))
+          img.alpha_composite(art, (int((W - art.width) / 2), int((W - art.height) / 2 - 40 * s)))
+          d = ImageDraw.Draw(img)
+          w, h, cy = 210 * s, 70 * s, 748 * s
+          box = [W / 2 - w / 2, cy - h / 2, W / 2 + w / 2, cy + h / 2]
+          d.rounded_rectangle(box, radius=h / 2, fill=(229, 50, 56, 255), outline=(255, 255, 255, 255), width=int(6 * s))
+          font = None
+          for f in ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"]:
+              try:
+                  font = ImageFont.truetype(f, int(48 * s)); break
+              except OSError:
+                  pass
+          if font is None:
+              font = ImageFont.load_default(size=int(48 * s))
+          d.text((W / 2, cy), "DEV", font=font, fill="white", anchor="mm")
+          img.save(out)
+          PY
+          python3 "$RUNNER_TEMP/dev_icon.py" "$ICON" "$ICON"
+
       - name: Install dependencies and generate the Android project
         run: |
           pnpm install --frozen-lockfile
