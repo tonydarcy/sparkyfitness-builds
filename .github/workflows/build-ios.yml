@@ -1,0 +1,167 @@
+name: Build iOS sideload IPA
+
+# Builds the SparkyFitness *dev* variant for iPhone and iPad from a branch of
+# tonydarcy/SparkyFitness and publishes it as a release here. The IPA is not
+# signed for distribution: SideStore (or AltStore, or Sideloadly on the Mac)
+# signs it on install with a free Apple ID. Free signing lasts 7 days, so the
+# app is refreshed weekly. The dev variant already drops the entitlements a
+# free Apple ID cannot sign (push, NFC), and its bundle ID differs from the
+# official app's, so the two install side by side.
+
+on:
+  push:
+    branches: [claude/project-thread-btem72]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch of tonydarcy/SparkyFitness to build"
+        required: true
+        default: "tdmain"
+      app_label:
+        description: "Name shown under the app icon"
+        required: true
+        default: "Sparky Dev"
+      include_watch:
+        description: "Include the Apple Watch app (uses 2 more of a free Apple ID's 10 app IDs)"
+        type: boolean
+        default: false
+      runner:
+        description: "Runner label (macos-latest, or xcode-27 for the preview image)"
+        required: false
+        default: macos-latest
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner == 'xcode-27' && 'xcode-27' || 'macos-latest' }}
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out this repo (helper scripts)
+        uses: actions/checkout@v4
+        with:
+          path: builds
+
+      - name: Check out SparkyFitness
+        uses: actions/checkout@v4
+        with:
+          repository: tonydarcy/SparkyFitness
+          ref: ${{ inputs.branch || 'tdmain' }}
+          path: src
+
+      - name: Record the commit being built
+        id: src
+        working-directory: src
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./SparkyFitnessMobile/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: src/pnpm-lock.yaml
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      # Must run from the repo root: the workspace patches @bacons/apple-targets.
+      - name: Install dependencies and generate the iOS project
+        working-directory: src
+        run: |
+          pnpm install --frozen-lockfile
+          cd SparkyFitnessMobile
+          APP_VARIANT=dev npx expo prebuild --platform ios
+
+      - name: Rename the app label
+        working-directory: src/SparkyFitnessMobile/ios
+        env:
+          APP_LABEL: ${{ inputs.app_label || 'Sparky Dev' }}
+        run: |
+          PLIST=SparkyFitness/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_LABEL" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string $APP_LABEL" "$PLIST"
+
+      - name: Build (unsigned, Release, device)
+        working-directory: src/SparkyFitnessMobile
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/SparkyFitness.xcworkspace \
+            -scheme SparkyFitness \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build | tail -n 400
+
+      # SideStore and AltStore copy the entitlements from the app's signature
+      # into the one they sign with, so an app built with no signature at all
+      # would lose HealthKit and the app group. Ad-hoc sign each bundle with
+      # its own entitlements file, inner bundles first.
+      - name: Ad-hoc sign with entitlements and package the IPA
+        id: ipa
+        working-directory: src/SparkyFitnessMobile
+        env:
+          INCLUDE_WATCH: ${{ inputs.include_watch && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          APP=build/Build/Products/Release-iphoneos/SparkyFitness.app
+          [ -d "$APP" ] || { ls build/Build/Products/*; exit 1; }
+          if [ "$INCLUDE_WATCH" != "true" ]; then rm -rf "$APP/Watch"; fi
+
+          ruby "$GITHUB_WORKSPACE/builds/scripts/ios_target_entitlements.rb" "$PWD/ios" > "$RUNNER_TEMP/ents.tsv"
+          cat "$RUNNER_TEMP/ents.tsv"
+
+          sign() {
+            local bundle="$1"
+            local bid ent
+            bid=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Info.plist" 2>/dev/null || true)
+            ent=$(awk -F'\t' -v b="$bid" '$1==b {print $2; exit}' "$RUNNER_TEMP/ents.tsv")
+            if [ -n "$ent" ]; then
+              local out="$RUNNER_TEMP/$(basename "$bundle").entitlements"
+              sed -e 's/\$(AppIdentifierPrefix)//g' -e 's/\$(TeamIdentifierPrefix)//g' "$ent" > "$out"
+              echo "Signing $bundle ($bid) with $ent"
+              codesign --force --sign - --timestamp=none --entitlements "$out" "$bundle"
+            else
+              codesign --force --sign - --timestamp=none "$bundle"
+            fi
+          }
+
+          # Frameworks and dylibs, then extensions (and the watch app), then the app.
+          find "$APP" -depth \( -name '*.framework' -o -name '*.dylib' \) -print0 |
+            while IFS= read -r -d '' f; do codesign --force --sign - --timestamp=none "$f"; done
+          find "$APP" -depth -mindepth 1 \( -name '*.appex' -o -name '*.app' \) -print0 |
+            while IFS= read -r -d '' b; do sign "$b"; done
+          sign "$APP"
+          codesign -d --entitlements - "$APP" || true
+
+          OUT="$RUNNER_TEMP/sparkyfitness-dev-${{ steps.src.outputs.version }}-${{ steps.src.outputs.sha }}.ipa"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$OUT" Payload)
+          ls -la "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-build-${{ github.run_number }}
+          name: "iOS: ${{ inputs.branch || 'tdmain' }} @ ${{ steps.src.outputs.sha }} (build ${{ github.run_number }})"
+          body: |
+            iOS/iPadOS sideload build of `${{ inputs.branch || 'tdmain' }}` at tonydarcy/SparkyFitness@${{ steps.src.outputs.sha }}.
+            App version ${{ steps.src.outputs.version }}, dev variant (`org.SparkyApps.SparkyFitnessMobile1.dev`).
+            Not signed for distribution: install with SideStore, AltStore or Sideloadly using a free Apple ID.
+          files: ${{ steps.ipa.outputs.path }}
+          make_latest: false
