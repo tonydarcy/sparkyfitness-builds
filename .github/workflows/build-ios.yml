@@ -93,7 +93,6 @@ jobs:
       - name: Build (unsigned, Release, device)
         working-directory: src/SparkyFitnessMobile
         run: |
-          set -o pipefail
           xcodebuild \
             -workspace ios/SparkyFitness.xcworkspace \
             -scheme SparkyFitness \
@@ -104,7 +103,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build | tail -n 400
+            build > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || {
+              grep -E "error:|error \(|BUILD FAILED|failed with|The following build commands failed" -A4 "$RUNNER_TEMP/xcodebuild.log" | head -n 200
+              echo "---- last 60 lines ----"; tail -n 60 "$RUNNER_TEMP/xcodebuild.log"
+              exit 1
+            }
+          tail -n 20 "$RUNNER_TEMP/xcodebuild.log"
 
       # SideStore and AltStore copy the entitlements from the app's signature
       # into the one they sign with, so an app built with no signature at all
