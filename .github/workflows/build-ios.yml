@@ -97,7 +97,6 @@ jobs:
             -workspace ios/SparkyFitness.xcworkspace \
             -scheme SparkyFitness \
             -configuration Release \
-            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
