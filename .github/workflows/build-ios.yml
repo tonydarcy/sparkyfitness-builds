@@ -9,8 +9,6 @@ name: Build iOS sideload IPA
 # official app's, so the two install side by side.
 
 on:
-  push:
-    branches: [claude/project-thread-btem72]
   workflow_dispatch:
     inputs:
       branch:
