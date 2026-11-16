@@ -1,0 +1,35 @@
+{
+  "name": "Sparky Dev builds",
+  "identifier": "io.github.tonydarcy.sparkyfitness-builds",
+  "subtitle": "Test builds of SparkyFitness from tonydarcy/SparkyFitness",
+  "iconURL": "https://raw.githubusercontent.com/tonydarcy/SparkyFitness/tdmain/SparkyFitnessMobile/assets/icons/appstore.png",
+  "website": "https://github.com/tonydarcy/sparkyfitness-builds",
+  "news": [],
+  "apps": [
+    {
+      "bundleIdentifier": "org.SparkyApps.SparkyFitnessMobile1.dev",
+      "versions": [
+        {
+          "version": "1.12.1",
+          "buildVersion": "1",
+          "date": "2026-11-14T00:40:00Z",
+          "localizedDescription": "Build 1 from commit cd5de88.",
+          "downloadURL": "https://github.com/tonydarcy/sparkyfitness-builds/releases/download/ios-build-4/sparkyfitness-dev-1.12.1-cd5de88.ipa",
+          "size": 40631803,
+          "minOSVersion": "16.4"
+        }
+      ],
+      "name": "Sparky Dev",
+      "developerName": "tonydarcy",
+      "subtitle": "SparkyFitness test build",
+      "localizedDescription": "SparkyFitness built from Tony's fork. Installs alongside the official app.",
+      "iconURL": "https://raw.githubusercontent.com/tonydarcy/SparkyFitness/tdmain/SparkyFitnessMobile/assets/icons/appstore.png",
+      "tintColor": "#E53238",
+      "category": "health-fitness",
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      }
+    }
+  ]
+}
