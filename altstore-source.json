@@ -11,6 +11,15 @@
       "versions": [
         {
           "version": "1.12.1",
+          "buildVersion": "5",
+          "date": "2026-11-16T23:09:33Z",
+          "localizedDescription": "Build 5 from commit 738c1e9.",
+          "downloadURL": "https://github.com/tonydarcy/sparkyfitness-builds/releases/download/ios-build-5/sparkyfitness-dev-1.12.1-738c1e9.ipa",
+          "size": 40781489,
+          "minOSVersion": "16.4"
+        },
+        {
+          "version": "1.12.1",
           "buildVersion": "1",
           "date": "2026-11-14T00:40:00Z",
           "localizedDescription": "Build 1 from commit cd5de88.",
