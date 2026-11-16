@@ -87,6 +87,8 @@ jobs:
           PLIST=SparkyFitness/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_LABEL" "$PLIST" \
             || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string $APP_LABEL" "$PLIST"
+          # A rising build number is what SideStore compares to offer an update.
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$PLIST"
 
       - name: Build (unsigned, Release, device)
         working-directory: src/SparkyFitnessMobile
@@ -154,6 +156,8 @@ jobs:
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$OUT" Payload)
           ls -la "$OUT"
           echo "path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$OUT")" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -f%z "$OUT")" >> "$GITHUB_OUTPUT"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -166,3 +170,19 @@ jobs:
             Not signed for distribution: install with SideStore, AltStore or Sideloadly using a free Apple ID.
           files: ${{ steps.ipa.outputs.path }}
           make_latest: false
+
+      # SideStore reads altstore-source.json from main and shows this build in
+      # its Updates tab on every device that added the source.
+      - name: Add the build to the SideStore source
+        working-directory: builds
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          python3 scripts/update_altstore_source.py altstore-source.json \
+            "https://github.com/${{ github.repository }}/releases/download/ios-build-${{ github.run_number }}/${{ steps.ipa.outputs.name }}" \
+            "${{ steps.ipa.outputs.size }}" "${{ steps.src.outputs.version }}" "${{ github.run_number }}" "${{ steps.src.outputs.sha }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add altstore-source.json
+          git commit -m "SideStore source: iOS build ${{ github.run_number }}"
+          git push origin main

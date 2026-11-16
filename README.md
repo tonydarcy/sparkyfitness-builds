@@ -42,6 +42,16 @@ A second Apple ID made just for this is fine, and keeps your main one out of it.
 The app shows as **Sparky Dev**. A newer build installs over the old one and
 keeps its data.
 
+### Updates from SideStore
+
+Add the source once on each device: SideStore > **Sources** > **+**, and paste
+
+    https://raw.githubusercontent.com/tonydarcy/sparkyfitness-builds/main/altstore-source.json
+
+Every iOS build adds itself to that source. A new build then appears in
+SideStore's **Updates** tab (pull down to refresh); tap **Update** with
+LocalDevVPN on. iOS does not allow silent installs, so the tap is needed.
+
 ### Weekly refresh
 
 Free signing lasts 7 days. Before it runs out, turn on LocalDevVPN and tap
