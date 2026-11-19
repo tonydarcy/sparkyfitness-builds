@@ -11,6 +11,15 @@
       "versions": [
         {
           "version": "1.12.1",
+          "buildVersion": "7",
+          "date": "2026-11-19T00:17:13Z",
+          "localizedDescription": "Build 7 from commit cca7020.",
+          "downloadURL": "https://github.com/tonydarcy/sparkyfitness-builds/releases/download/ios-build-7/sparkyfitness-dev-1.12.1-cca7020.ipa",
+          "size": 40945134,
+          "minOSVersion": "16.4"
+        },
+        {
+          "version": "1.12.1",
           "buildVersion": "6",
           "date": "2026-11-17T00:44:16Z",
           "localizedDescription": "Build 6 from commit 8421c47.",
