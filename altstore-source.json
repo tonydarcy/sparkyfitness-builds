@@ -11,6 +11,15 @@
       "versions": [
         {
           "version": "1.12.1",
+          "buildVersion": "9",
+          "date": "2026-11-26T01:37:59Z",
+          "localizedDescription": "Build 9 from commit d3b6be8.",
+          "downloadURL": "https://github.com/tonydarcy/sparkyfitness-builds/releases/download/ios-build-9/sparkyfitness-dev-1.12.1-d3b6be8.ipa",
+          "size": 45049196,
+          "minOSVersion": "16.4"
+        },
+        {
+          "version": "1.12.1",
           "buildVersion": "8",
           "date": "2026-11-23T03:35:22Z",
           "localizedDescription": "Build 8 from commit 9800015.",
@@ -43,15 +52,6 @@
           "localizedDescription": "Build 5 from commit 738c1e9.",
           "downloadURL": "https://github.com/tonydarcy/sparkyfitness-builds/releases/download/ios-build-5/sparkyfitness-dev-1.12.1-738c1e9.ipa",
           "size": 40781489,
-          "minOSVersion": "16.4"
-        },
-        {
-          "version": "1.12.1",
-          "buildVersion": "1",
-          "date": "2026-11-14T00:40:00Z",
-          "localizedDescription": "Build 1 from commit cd5de88.",
-          "downloadURL": "https://github.com/tonydarcy/sparkyfitness-builds/releases/download/ios-build-4/sparkyfitness-dev-1.12.1-cd5de88.ipa",
-          "size": 40631803,
           "minOSVersion": "16.4"
         }
       ],
